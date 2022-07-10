@@ -1,0 +1,200 @@
+---
+title: "Health Insurance Prediction"
+author: "Okiemute Omoru"
+date: '2022-07-10'
+output: html_document
+---
+
+
+```{r}
+#Relative Path
+library(rstudioapi)
+setwd(dirname(getActiveDocumentContext()$path))
+
+#analysis of medical health insurance data (linear regression)
+library(readxl)
+library(ggplot2)
+library(reshape)
+library(psych)
+library(car)
+library(tidyverse)
+#load data
+#data obtained from Kaggle
+insurance_data= read_excel("/Users/kiteomoru/Downloads/insurance.xlsx")
+data= as.data.frame(insurance_data)
+head(data)
+describe(data)
+
+#data exploration
+str(data$age)
+str(data$sex)
+str(data$bmi)
+str(data$children)
+str(data$smoker)
+str(data$region)
+str(data$charges)
+#data distribution
+table(data$region)
+table(data$sex)
+table(data$smoker)
+#bmi (binary variable)
+data$bmi_cat= ifelse(data$bmi>= 30, 1, 0)
+
+
+#check for na data
+sum(is.na(data)) #no missing data values
+
+
+#correlation analysis
+cor_data_m=cor(data[c('age', 'bmi_cat', 'children', 'charges')])
+#visualize
+
+cor_data_m_melt= melt(cor_data_m)
+cor_data_m_melt$value= round(cor_data_m_melt$value, digits = 2)
+heatmap= ggplot(cor_data_m_melt, aes(X1, X2, fill= value))+
+  geom_tile(color = "white", lwd= 1.5, linetype= 1) +
+  scale_fill_gradient2(low = "#2C7BB6",
+                       mid = "white",
+                       high = "#D7191C", breaks=seq(-1,1,0.2), limits= c(-1,1)) +
+  coord_fixed() + 
+  theme_minimal(base_family="Helvetica")+
+  guides(fill = guide_colourbar(barwidth = 0.5,barheight = 20))
+heatmap
+
+heatmap2=heatmap + 
+  geom_text(aes(X1, X2, label = value), color = "black", size = 4) +
+  theme(axis.ticks=element_blank())+
+  theme(axis.text.x=element_text(angle = 45, hjust = 1))
+heatmap2
+
+#Age and BMI have the closest correlation with insurance charges
+
+#scatterplot to find relationship among variables
+pairs.panels(data[c('age', 'bmi_cat','bmi', 'children', 'charges')])
+
+
+#Statistics
+summary(data$charges)
+summary(data$bmi)
+summary(data$age)
+summary(data$children)
+hist(data$charges) #data is skewed 
+hist(data$bmi) #data is skewed 
+hist(data$age) #data is skewed 
+hist(data$children) #data is skewed 
+
+#Normality testing
+#visualize
+qqPlot(data$charges)
+qqPlot(data$age)
+qqPlot(data$bmi)
+qqPlot(data$children)
+
+#Shapiro-Wilk
+shapiro.test(data$age)
+shapiro.test(data$charges)
+shapiro.test(data$bmi)
+shapiro.test(data$children)
+
+#Linear regression model to predict  lm()
+
+#prepare data for modelling
+
+
+#testing and training data
+#20%test 80%train
+traindata=round(0.8 * nrow(data))
+train_indices=sample(1:nrow(data), traindata)
+Data_train =data[train_indices, ]
+Data_test =data[-train_indices, ]
+
+#generate linear model-1
+lmformula1=as.formula("charges ~ age + sex + bmi_cat + children + smoker + region")
+ins_datamodel1= lm(lmformula1, data = Data_train)
+#summarise
+summary(ins_datamodel1)
+
+#predict data
+rsq1 <- summary(ins_datamodel1)$r.squared #r-squared
+
+#predict data on test set
+predict1 <- predict(ins_datamodel1, newdata = Data_test)
+#calculating the residuals
+residuals1 <- Data_test$charges - predict1
+#calculating Root Mean Squared Error
+rmse1 <- sqrt(mean(residuals1^2))
+
+#generate linear model-2
+#eliminating low correlating / insignificant variables, eg, sex and children
+
+lmformula2=as.formula("charges ~ age + bmi_cat + smoker + region")
+ins_datamodel2= lm(lmformula2, data = Data_train)
+#summarise
+summary(ins_datamodel2)
+
+#predict data
+rsq2 <- summary(ins_datamodel2)$r.squared #r-squared
+
+#predict data on test set
+predict2 <- predict(ins_datamodel2, newdata = Data_test)
+#calculating the residuals
+residuals2 <- Data_test$charges - predict2
+#calculating Root Mean Squared Error
+rmse2 <- sqrt(mean(residuals2^2))
+
+#compare both linear models
+print(paste0("R-squared for first model:", round(rsq1, 4)))
+print(paste0("R-squared for second model:", round(rsq2, 4)))
+print(paste0("RMSE for first model: ", round(rmse1, 2)))
+print(paste0("RMSE for second model: ", round(rmse2, 2)))
+
+#both models are quite similar. we will proceed with the second model
+
+#visualize the distribution of predicted vs real charges values
+Data_test$prediction <- predict(ins_datamodel2, newdata = Data_test)
+ggplot(Data_test, aes(x = prediction, y = charges)) + 
+  geom_point(color = "blue", alpha = 0.7) + 
+  geom_abline(color = "red") +
+  ggtitle("Predicted values vs. Real values")
+
+
+#Residuals histogram
+Data_test$residuals <- Data_test$charges - Data_test$prediction
+ggplot(Data_test, aes(x = residuals)) + 
+  geom_histogram(bins = 15, fill = "blue") +
+  ggtitle("Histogram of residuals")
+
+ggplot(data = Data_test, aes(x = prediction, y = residuals)) +
+  geom_pointrange(aes(ymin = 0, ymax = residuals), color = "blue", alpha = 0.7) +
+  geom_hline(yintercept = 0, linetype = 3, color = "red") +
+  ggtitle("Residuals vs. Linear model prediction")
+
+
+#Test model
+
+Kite <- data.frame(age = 28,
+                     bmi = 22,
+                     children = 0,
+                     smoker = "no",
+                     region = "northwest",
+                   bmi_cat=0)
+print(paste0("Health care charges for Kite: ", round(predict(ins_datamodel2, Kite), 2)))
+
+
+Achilles <- data.frame(age = 66,
+                   bmi = 29,
+                   children = 3,
+                   smoker = "yes",
+                   region = "northwest",
+                   bmi_cat=0)
+print(paste0("Health care charges for Achilles: ", round(predict(ins_datamodel2, Achilles), 2)))
+
+head(Data_test, n=50)
+
+#Reference:
+#https://rpubs.com/SamShariful/health-insurance
+#data- Kaggle
+
+```
+
+
