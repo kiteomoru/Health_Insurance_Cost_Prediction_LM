@@ -4,3 +4,4 @@ HTML/RMARKDOWN: https://rpubs.com/Kiteomoru/Healthinsurance
 
 
 Run Health_Insurance_Cost_Prediction_LM/app.R to deploy model predictions within the shiny app
+Interactive Rshiny app: https://okiemute-omoru.shinyapps.io/Rshinyproject/
